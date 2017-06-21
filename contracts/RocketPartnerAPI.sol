@@ -104,11 +104,6 @@ contract RocketPartnerAPI is Owned {
             // Fire the event now
             APIpartnerDepositAccepted(msg.sender, partnerUserAddress, poolStakingTimeID, msg.value, now);
         }
-
-        /* // Good idea, but best implemented with a shell contract that needs to spawn other contracts of the same type
-        if(rocketHub.getRocketPoolAddress().delegatecall(bytes4(sha3("partnerDeposit(address,bytes32)")), partnerUserAddress, poolStakingTimeID)) {
-            APIpartnerDepositAccepted(msg.sender, partnerUserAddress, poolStakingTimeID, msg.value, now);
-        }*/
     }
 
     /// @notice Withdraw ether from Rocket Pool via a 3rd party partner
