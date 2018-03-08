@@ -29,7 +29,7 @@ contract RocketPool is RocketBase {
 
     event PoolCreated (
         address indexed _address,
-        uint256 indexed _stakingDurationInSeconds,
+        address indexed _nodeOwner,
         uint256 created
     );
 
@@ -49,6 +49,7 @@ contract RocketPool is RocketBase {
         address indexed _nodeAddress,
         uint256 created
     );
+
 
     event FlagAddress (
         address flag
@@ -116,39 +117,47 @@ contract RocketPool is RocketBase {
         // The contract of the desired pool address
         RocketPoolMini poolAddUserTo = RocketPoolMini(0);
         // Check to see if this user is already in the next pool to launch that has the same staking duration period (ie 3 months, 6 months etc)
-        address[] memory poolsFound = getPoolsFilterWithStatusAndDuration(0, _poolStakingDuration);
-        // No pools awaiting? lets make one
+        address[] memory poolsFound = getPoolsFilterWithStatusAndDuration(1, _poolStakingDuration);
+        // No available minipools in that duration?
         if (poolsFound.length == 0) {
-            // Create new pool contract
-            poolAssignToAddress = createPool(_poolStakingDuration);
-        } else {
-            // Check to see if there's a pool this user doesn't already have a deposit in, 1 user address per pool
-            for (uint32 i = 0; i < poolsFound.length; i++) {
-                // Have we found one already?
-                if (poolAssignToAddress == 0) {
-                    // Get the contract instance 
-                    poolAddUserTo = getPoolInstance(poolsFound[i]);
-                    // Does this exist in this pool? If so, select this pool so their deposit gets incremented
-                    if (poolAddUserTo.getUserExists(_newUserAddress)) {
-                        // Add them to a minipool acceptind deposits that they already belong too
-                        poolAssignToAddress = poolsFound[i];
-                    }
+            // Ok lets grab a waiting available pool contract with no duration set and assign it for this user
+            poolsFound = getPoolsFilterWithStatus(0);
+            // No available pools, nodes need to create them, something has gone wrong or we need to wait for an available one to be created
+            require(poolsFound.length > 0);
+            // Ok we have one, lets assign it this staking duration
+            // TODO: Add regional / subnet rotation - using pseudo randominisation for now to ensure good network distribution
+            poolAssignToAddress = poolsFound[uint256(keccak256(block.timestamp))%(poolsFound.length - 1)];
+            // Get the contract instance
+            poolAddUserTo = getPoolInstance(poolAssignToAddress);
+            // Now set the duration on that pool
+            poolAddUserTo.setStakingDuration(_poolStakingDuration);
+        }
+        // Check to see if there's a pool this user already has a deposit in and increment it if so
+        for (uint32 i = 0; i < poolsFound.length; i++) {
+            // Have we found one already?
+            if (poolAssignToAddress == 0) {
+                // Get the contract instance 
+                poolAddUserTo = getPoolInstance(poolsFound[i]);
+                // Does this exist in this pool? If so, select this pool so their deposit gets incremented
+                if (poolAddUserTo.getUserExists(_newUserAddress)) {
+                    // Add them to a minipool acceptind deposits that they already belong too
+                    poolAssignToAddress = poolsFound[i];
                 }
             }
-            // They don't already have any deposits in a minipool, add them to the first pool we found that matches their desired staking time
-            if (poolAssignToAddress == 0) {
-                poolAssignToAddress = poolsFound[0];
-            }
-        }  
-          
-
+        }
+        // They don't already have any deposits in a minipool, add them to a new available pool and set its duration
+        if (poolAssignToAddress == 0) {
+            // Ok we have one, lets assign it this staking duration
+            // TODO: Add regional / subnet rotation - using pseudo randominisation for now to ensure good network distribution
+            poolAssignToAddress = poolsFound[uint256(keccak256(block.timestamp))%(poolsFound.length - 1)];
+            // Ok assign it the users desired staking duration     
+        }
         // Do we have a valid pool and they are added ok? If not, now available pools and new pool creation has failed, send funds back;
         assert(poolAssignToAddress != 0);
-        
         // Get the contract instance
         poolAddUserTo = getPoolInstance(poolAssignToAddress);
         // Double check the pools status is accepting deposits and user isn't in there already
-        if (poolAddUserTo.getStatus() == 0) {
+        if (poolAddUserTo.getStatus() == 1) {
             // User is added if they don't exist in it already
             if (poolAddUserTo.addUser(_newUserAddress, _partnerAddress)) {
                 // Fire the event
@@ -162,14 +171,12 @@ contract RocketPool is RocketBase {
     /// @dev See if there are any pools thats launch countdown has expired that need to be launched for staking
     /// @dev This method is designed to only process one minipool status type from each node checkin every 15 mins to prevent the gas block limit from being exceeded and make load balancing more accurate
     function poolNodeActions() external onlyLatestRocketNode {
-        // Get our Rocket Node contract
-        RocketNodeInterface rocketNode = RocketNodeInterface(rocketStorage.getAddress(keccak256("contract.name", "rocketNode")));
         // Create an empty instance of a pool contract to populate later if we find one
         RocketPoolMini pool = RocketPoolMini(0);
         // Our shared iterator 
         uint32 i = 0;
         // Find the pools requested with the status
-        address[] memory poolsFound = getPoolsFilterWithStatus(1);
+        address[] memory poolsFound = getPoolsFilterWithStatus(2);
         // Do we have any pools awaiting launch?
         if (poolsFound.length > 0) {
             // Ready to launch?
@@ -179,15 +186,7 @@ contract RocketPool is RocketBase {
                 // Check its ok
                 require(address(pool) != 0x0);
                 // In order to begin staking, a node must be assigned to the pool and the timer for the launch must be past
-                if (pool.getNodeAddress() == 0 && pool.getCanDeposit() == true) {
-                    // Get a node for this pool to be assigned too
-                    address nodeAddress = rocketNode.getNodeAvailableForPool();
-                    // That node must exist
-                    require(nodeAddress != 0x0);
-                    // Assign the pool to our node with the least average work load to help load balance the nodes and the the casper registration details
-                    pool.setNodeDetails(nodeAddress);
-                    // Fire the event
-                    PoolAssignedToNode(nodeAddress, poolsFound[i], now);
+                if (pool.getCanDeposit() == true) {
                     // Now set the pool to begin staking with casper by updating its status with the newly assigned node
                     pool.updateStatus();
                     // Exit the loop
@@ -196,7 +195,7 @@ contract RocketPool is RocketBase {
             }
         }
         // See if there are any pools thats can start the withdrawal process with Casper
-        poolsFound = getPoolsFilterWithStatus(2);
+        poolsFound = getPoolsFilterWithStatus(3);
         // Do we have any pools currently staking?
         if (poolsFound.length > 0) {
             // Ready for re-entry?
@@ -213,7 +212,7 @@ contract RocketPool is RocketBase {
             }
         }
         // Check to see if there are any pools that are awaiting their deposit to be returned from Casper
-        poolsFound = getPoolsFilterWithStatus(3);
+        poolsFound = getPoolsFilterWithStatus(4);
         // Do we have any pools currently awaiting on their deposit from casper?
         if (poolsFound.length > 0) {
             // Ready for re-entry?
@@ -344,13 +343,13 @@ contract RocketPool is RocketBase {
         pool.setStakingDuration(_poolStakingDuration);
     } 
   
-    /// @dev Create a new pool 
-    /// @param _poolStakingDuration The staking duration of this pool in seconds. Various pools can exist with different durations depending on the users needs.
-    function createPool(uint256 _poolStakingDuration) private poolsAllowedToBeCreated onlyLatestRocketPool returns(address) {
+    /// @dev Create a new pool, only RocketNode can call this as it needs to be the one that created the contract for signature verification with Casper
+    /// @param _nodeOwner The node that created this minipool
+    function createPool(address _nodeOwner) external poolsAllowedToBeCreated onlyLatestRocketNode returns(address) {
         // Create the new pool and add it to our list
         RocketFactoryInterface rocketFactory = RocketFactoryInterface(rocketStorage.getAddress(keccak256("contract.name", "rocketFactory")));
         // Ok make the minipool contract now
-        address newPoolAddress = rocketFactory.createRocketPoolMini(_poolStakingDuration);
+        address newPoolAddress = rocketFactory.createRocketPoolMini(_nodeOwner); 
         // Add the mini pool to the primary persistent storage so any contract upgrades won't effect the current stored mini pools
         // Check it doesn't already exist
         require(!getPoolExists(newPoolAddress));
@@ -365,7 +364,7 @@ contract RocketPool is RocketBase {
         // We also index all our data so we can do a reverse lookup based on its array index
         rocketStorage.setAddress(keccak256("minipools.index.reverse", minipoolCountTotal), newPoolAddress);
         // Fire the event
-        PoolCreated(newPoolAddress, _poolStakingDuration, now);
+        PoolCreated(newPoolAddress, _nodeOwner, now);
         // Return the new pool address
         return newPoolAddress; 
     } 

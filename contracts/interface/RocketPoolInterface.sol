@@ -2,6 +2,8 @@ pragma solidity 0.4.19;
 
 
 contract RocketPoolInterface {
+    /// @dev Check pools allowed to be made
+    modifier poolsAllowedToBeCreated() {_;}
     /// @dev Deposits must be validated
     modifier acceptableDeposit() {_;}
     /// @dev Existing mini pools are allowed to be closed and selfdestruct when finished
@@ -14,6 +16,9 @@ contract RocketPoolInterface {
     modifier onlyLatestRocketNode() {_;}
     /// @dev Only allow access for deposits from the User contract and Partner contract
     modifier onlyAuthorisedDepositContracts() {_;}
+    /// @dev Create a new pool, only RocketNode can call this as it needs to be the one that created the contract for signature verification with Casper
+    /// @param _poolStakingDuration The staking duration of this pool in seconds. Various pools can exist with different durations depending on the users needs.
+    function createPool(uint256 _poolStakingDuration, address _nodeOwner) external poolsAllowedToBeCreated onlyLatestRocketNode returns(address);
     /// @dev Returns a count of the current minipools attached to this node address
     /// @param _nodeAddress Address of the node
     function getPoolsFilterWithNodeCount(address _nodeAddress) view public returns(uint256);

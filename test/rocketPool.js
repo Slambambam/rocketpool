@@ -93,11 +93,15 @@ contract('RocketPool', accounts => {
 
   // Node accounts and gas settings
   const nodeFirst = accounts[8];
-  const nodeFirstOracleID = 'aws';
+  const nodeFirstProviderID = 'aws';
+  const nodeFirstSubnetID = 'nvirginia';
   const nodeFirstInstanceID = 'i-1234567890abcdef5';
+  const nodeFirstRegionID = 'usa-east';
   const nodeSecond = accounts[9];
-  const nodeSecondOracleID = 'rackspace';
+  const nodeSecondProviderID = 'rackspace';
+  const nodeSecondSubnetID = 'ohio';
   const nodeSecondInstanceID = '4325';
+  const nodeSecondRegionID = 'usa-east';
   const nodeRegisterGas = 1600000;
   const nodeCheckinGas = 950000;
 
@@ -189,7 +193,7 @@ contract('RocketPool', accounts => {
 
   // Try to register a node as a non rocket pool owner
   it(printTitle('non owner', 'fail to register a node'), async () => {
-    const result = rocketNode.nodeAdd(nodeFirst, nodeFirstOracleID, nodeFirstInstanceID, {
+    const result = rocketNode.nodeAdd(nodeFirst, nodeFirstProviderID, nodeFirstSubnetID, nodeFirstInstanceID, nodeFirstRegionID, {
       from: userFirst,
       gas: nodeRegisterGas,
     });
@@ -198,8 +202,8 @@ contract('RocketPool', accounts => {
 
   // Register 2 nodes
   it(printTitle('owner', 'register 2 nodes'), async () => {
-    await rocketNode.nodeAdd(nodeFirst, nodeFirstOracleID, nodeFirstInstanceID, { from: owner, gas: nodeRegisterGas });
-    await rocketNode.nodeAdd(nodeSecond, nodeSecondOracleID, nodeSecondInstanceID, {
+    await rocketNode.nodeAdd(nodeFirst, nodeFirstProviderID, nodeFirstSubnetID, nodeFirstInstanceID, nodeFirstRegionID, { from: owner, gas: nodeRegisterGas });
+    await rocketNode.nodeAdd(nodeSecond, nodeSecondProviderID, nodeSecondSubnetID, nodeSecondInstanceID, nodeSecondRegionID, {
       from: owner,
       gas: nodeRegisterGas,
     });

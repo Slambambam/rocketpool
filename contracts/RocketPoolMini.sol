@@ -13,8 +13,8 @@ contract RocketPoolMini is RocketBase {
 
     /**** Properties ***********/
 
-    address private rocketNodeAddress = 0;                      // Node this minipool is attached to, this is set just before it launches
-    uint256 private stakingDuration;                            // The time this pool will stake for before withdrawal is allowed (seconds)
+    address private nodeOwner = 0;                              // Node this minipool is attached to
+    uint256 private stakingDuration = 0;                            // The time this pool will stake for before withdrawal is allowed (seconds)
     uint256 private stakingBalance = 0;                         // The ether balance sent to stake from the pool
     uint256 private stakingBalanceReceived = 0;                 // The ether balance sent to the pool after staking was completed in Casper
     mapping (address => User) private users;                    // Users in this pool
@@ -114,13 +114,13 @@ contract RocketPoolMini is RocketBase {
     /*** Methods *************/
    
     /// @dev pool constructor
-    function RocketPoolMini(address _rocketStorageAddress, uint256 _miniPoolStakingDuration) RocketBase(_rocketStorageAddress) public {
+    function RocketPoolMini(address _rocketStorageAddress, address _nodeOwner) RocketBase(_rocketStorageAddress) public {
         // The current version of this pool
         version = 1;
+        // The creator of this minipool
+        nodeOwner = _nodeOwner;
         // Set the address of the Casper contract
         casper = CasperInterface(rocketStorage.getAddress(keccak256("contract.name", "casper")));
-        // Staking details
-        stakingDuration = _miniPoolStakingDuration;
         // New pools are set to pre launch and accept deposits by default
         rocketSettings = RocketSettingsInterface(rocketStorage.getAddress(keccak256("contract.name", "rocketSettings")));
         status = rocketSettings.getMiniPoolDefaultStatus();
@@ -182,7 +182,7 @@ contract RocketPoolMini is RocketBase {
  
     /// @dev Gets the node address this mini pool is attached too
     function getNodeAddress() public view returns(address) {
-        return rocketNodeAddress;
+        return nodeOwner;
     }
 
     /// @dev Returns true if this pool is able to send a deposit to Casper   
@@ -203,11 +203,6 @@ contract RocketPoolMini is RocketBase {
     /// @dev Returns true if this pool is able to allow withdrawals after staking is completed
     function getCanUsersWithdraw() public returns(bool) {
         return getMiniDelegateBooleanResponse(bytes4(keccak256("getCanUsersWithdraw()")));
-    }
-
-    /// @dev Set the node address this mini pool is attached too
-    function setNodeDetails(address _nodeAddress) external onlyLatestRocketPool {
-        rocketNodeAddress = _nodeAddress;
     }
 
     /// @dev Gets the current staking duration

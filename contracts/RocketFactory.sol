@@ -49,10 +49,12 @@ contract RocketFactory is RocketBase {
 
     /// @dev Create a new RocketPoolMini contract, deploy to the etherverse and return the address to the caller
     /// @dev Note that the validation and logic for creation should be done in the calling contract
-    /// @param _miniPoolStakingDuration The staking duration for the mini pool
-    function createRocketPoolMini(uint256 _miniPoolStakingDuration) public onlyLatestRocketPool returns(address) {
+    /// @param _nodeOwner The node that owns that minipool
+    function createRocketPoolMini(uint256 _nodeOwner) public onlyLatestRocketPool returns(address) {
+        // Check the owner
+        require(_nodeOwner != 0x0);
         // Create the new pool and add it to our list
-        RocketPoolMini newPoolAddress = new RocketPoolMini(address(rocketStorage), _miniPoolStakingDuration);
+        RocketPoolMini newPoolAddress = new RocketPoolMini(address(rocketStorage), _nodeOwner);
         // Store it now after a few checks
         if (addContract(keccak256("rocketMiniPool"), newPoolAddress)) {
             return newPoolAddress;

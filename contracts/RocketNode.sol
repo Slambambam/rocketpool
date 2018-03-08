@@ -61,6 +61,7 @@ contract RocketNode is RocketBase {
         _;
     }
 
+
     
     /*** Methods *************/
    
@@ -123,10 +124,10 @@ contract RocketNode is RocketBase {
 
     /// @dev Owner can change a nodes oracle ID ('aws', 'rackspace' etc)
     /// @param _nodeAddress Address of the node
-    /// @param _oracleID The oracle ID
-    function setNodeOracleID(address _nodeAddress, string _oracleID) public onlyRegisteredNode(_nodeAddress) onlyOwner {
+    /// @param _providerID The oracle ID
+    function setNodeproviderID(address _nodeAddress, string _providerID) public onlyRegisteredNode(_nodeAddress) onlyOwner {
         // Get our RocketHub contract with the node storage, so we can check the node is legit
-        rocketStorage.setString(keccak256("node.oracleID", _nodeAddress), _oracleID);
+        rocketStorage.setString(keccak256("node.providerID", _nodeAddress), _providerID);
     }
 
     /// @dev Owner can change a nodes instance ID ('aws', 'rackspace' etc)
@@ -141,9 +142,11 @@ contract RocketNode is RocketBase {
 
     /// @dev Register a new node address if it doesn't exist, only the contract creator can do this
     /// @param _newNodeAddress New nodes coinbase address
-    /// @param _oracleID Current oracle identifier for this node (eg AWS, Rackspace etc)
-    /// @param _instanceID The instance ID of the server to use on the oracle
-    function nodeAdd(address _newNodeAddress, string _oracleID, string _instanceID) public onlyOwner returns (bool) {
+    /// @param _providerID Current provider identifier for this node (eg AWS, Rackspace etc)
+    /// @param _subnetID Current subnet identifier for this node (eg NViginia, Ohio etc)
+    /// @param _instanceID The instance ID of the server (eg FA3422)
+    /// @param _regionID The region ID of the server (aus-east, america-north etc)
+    function nodeAdd(address _newNodeAddress, string _providerID, string _subnetID, string _instanceID, string _regionID) public onlyOwner returns (bool) {
         // Get our settings
         rocketSettings = RocketSettingsInterface(rocketStorage.getAddress(keccak256("contract.name", "rocketSettings")));
         // Check the address is ok
@@ -155,9 +158,10 @@ contract RocketNode is RocketBase {
         // Get how many nodes we currently have  
         uint256 nodeCountTotal = rocketStorage.getUint(keccak256("nodes.total")); 
         // Ok now set our node data to key/value pair storage
-        rocketStorage.setString(keccak256("node.oracleID", _newNodeAddress), _oracleID);
+        rocketStorage.setString(keccak256("node.providerID", _newNodeAddress), _providerID);
+        rocketStorage.setString(keccak256("node.subnetID", _newNodeAddress), _subnetID);
         rocketStorage.setString(keccak256("node.instanceID", _newNodeAddress), _instanceID);
-        rocketStorage.setString(keccak256("node.region", _newNodeAddress), "tba");
+        rocketStorage.setString(keccak256("node.regionID", _newNodeAddress), _regionID);
         rocketStorage.setUint(keccak256("node.averageLoad", _newNodeAddress), 0);
         rocketStorage.setUint(keccak256("node.lastCheckin", _newNodeAddress), now);
         rocketStorage.setBool(keccak256("node.active", _newNodeAddress), true);
@@ -185,6 +189,10 @@ contract RocketNode is RocketBase {
         uint256 nodesTotal = rocketStorage.getUint(keccak256("nodes.total"));
         // Now remove this nodes data from storage
         uint256 nodeIndex = rocketStorage.getUint(keccak256("node.index", _nodeAddress));
+        rocketStorage.deleteString(keccak256("node.providerID", _nodeAddress));
+        rocketStorage.deleteString(keccak256("node.subnetID", _nodeAddress));
+        rocketStorage.deleteString(keccak256("node.instanceID", _nodeAddress));
+        rocketStorage.deleteString(keccak256("node.regionID", _nodeAddress));
         rocketStorage.deleteUint(keccak256("node.lastCheckin", _nodeAddress));
         rocketStorage.deleteBool(keccak256("node.active", _nodeAddress));
         rocketStorage.deleteBool(keccak256("node.exists", _nodeAddress));
@@ -206,10 +214,10 @@ contract RocketNode is RocketBase {
         NodeRemoved(_nodeAddress, now);
     } 
 
-    /// @dev Nodes will checkin with Rocket Pool at a set interval (15 mins) to do things like report on average node server load, set nodes to inactive that have not checked in an unusally long amount of time etc. Only registered nodes can call this.
+    /// @dev Nodes will checkin with Rocket Pool at a set interval (15 mins) to do things like report on average node server load, get validator contracts to vote, set nodes to inactive that have not checked in an unusally long amount of time etc. Only registered nodes can call this.
     /// @param _currentLoadAverage The average server load for the node over the last 15 mins
     function nodeCheckin(uint256 _currentLoadAverage) public onlyRegisteredNode(msg.sender) {
-        // Get the hub
+        // Get the main pool contract
         RocketPoolInterface rocketPool = RocketPoolInterface(rocketStorage.getAddress(keccak256("contract.name", "rocketPool")));
         // Get our settings
         rocketSettings = RocketSettingsInterface(rocketStorage.getAddress(keccak256("contract.name", "rocketSettings")));
@@ -249,4 +257,55 @@ contract RocketNode is RocketBase {
             }
         } 
     }
+
+    /// @dev Create a minipool contract to be assigned to users when needed, node creates this contract so Casper will match the signatures correctly when the contract votes
+    /// @param _amount The amount of minipool contracts to create, be wary of exceeding the gas block limit
+    /// @param _poolStakingTimeID The staking duration ID for this pool. Various pools can exist with different durations depending on the users needs.
+    function nodeCreateMinipool(uint256 _amount, uint256 _poolStakingTimeID) external onlyRegisteredNode(msg.sender) {
+        // Start creating, if this fails, reduce the amount of contracts to create, they are fairly expensive
+        if (_amount > 0) {
+            // Get the main pool contract
+            RocketPoolInterface rocketPool = RocketPoolInterface(rocketStorage.getAddress(keccak256("contract.name", "rocketPool")));
+            for (uint32 i = 0; i < _amount; i++) { 
+               // Create a new minipool via RocketPool which controls all main pool actions
+               // Has to be created by a node to ensure the signatures match when talking to Casper
+               rocketPool.createPool(_poolStakingDuration, msg.sender);  
+            }
+        }
+    }
+
+
+    /// @dev Create a minipool contract to be assigned to users when needed, node creates this contract so Casper will match the signatures correctly when the contract votes
+    /// @param _amount The amount of minipool contracts to create, be wary of exceeding the gas block limit
+    /// @param _poolStakingDuration The staking duration of this pool in seconds. Various pools can exist with different durations depending on the users needs.
+    /*
+    function nodeCreateMinipool(uint256 _amount, uint256 _poolStakingDuration) external minipoolsAllowedToBeCreated onlyRegisteredNode(msg.sender) {
+        // Start creating, if this fails, reduce the amount of contracts to create, they are fairly expensive
+        if (_amount > 0) {
+            for (uint32 i = 0; i < _amount; i++) {
+                /// @dev Create a new pool, only RocketNode can call this as
+                // Create the new pool and add it to our list
+                RocketFactoryInterface rocketFactory = RocketFactoryInterface(rocketStorage.getAddress(keccak256("contract.name", "rocketFactory")));
+                // Ok make the minipool contract now
+                address newPoolAddress = rocketFactory.createRocketPoolMini(_poolStakingDuration);
+                // Add the mini pool to the primary persistent storage so any contract upgrades won't effect the current stored mini pools
+                // Check it doesn't already exist
+                require(!rocketStorage.getBool(keccak256("minipool.exists", newPoolAddress)));
+                // Get how many minipools we currently have  
+                uint256 minipoolCountTotal = rocketStorage.getUint(keccak256("minipools.total")); 
+                // Ok now set our data to key/value pair storage
+                rocketStorage.setBool(keccak256("minipool.exists", newPoolAddress), true);
+                // We store our data in an key/value array, so set its index so we can use an array to find it if needed
+                rocketStorage.setUint(keccak256("minipool.index", newPoolAddress), minipoolCountTotal);
+                // Update total minipools
+                rocketStorage.setUint(keccak256("minipools.total"), minipoolCountTotal + 1);
+                // We also index all our data so we can do a reverse lookup based on its array index
+                rocketStorage.setAddress(keccak256("minipools.index.reverse", minipoolCountTotal), newPoolAddress);
+                // Fire the event
+                PoolCreated(newPoolAddress, _poolStakingDuration, now);
+                // Return the new pool address
+                return newPoolAddress; 
+            }
+        }
+    }*/
 }

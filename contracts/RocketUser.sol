@@ -148,8 +148,6 @@ contract RocketUser is RocketBase {
         RocketPoolMini poolDepositTo = RocketPoolMini(poolUserBelongsToo);
         // Get the pool to withdraw the users deposit to its contract balance
         require(poolDepositTo.deposit.value(msg.value).gas(150000)(_userAddress) == true);
-        // Update the pools status now
-        poolDepositTo.updateStatus();
         // All good? Fire the event for the new deposit
         Transferred(_userAddress, poolUserBelongsToo, keccak256("deposit"), msg.value, now);   
         // Done
@@ -206,11 +204,11 @@ contract RocketUser is RocketBase {
         // Check to see if the user is actually in this pool and has a deposit
         require(userBalance > 0);
         // Check the status, must be accepting deposits, counting down to staking launch to allow withdrawals before staking incase users change their mind or officially awaiting withdrawals after staking
-        require(rocketPoolMini.getStatus() == 0 || rocketPoolMini.getStatus() == 1 || rocketPoolMini.getStatus() == 4);
+        require(rocketPoolMini.getStatus() == 1 || rocketPoolMini.getStatus() == 2 || rocketPoolMini.getStatus() == 5);
         // The pool has now received its deposit +rewards || -penalties from the Casper contract and users can withdraw
         // Users withdraw all their deposit + rewards at once when the pool has finished staking 
         // We need to update the users balance, rewards earned and fees incurred totals
-        if (rocketPoolMini.getStatus() == 4) {
+        if (rocketPoolMini.getStatus() == 5) {
             // Only proceed if the user can withdraw based on the minipool conditions
             require(rocketPoolMini.getCanUsersWithdraw() == true);
             // Update the users new balance, rewards earned and fees incurred
@@ -274,7 +272,7 @@ contract RocketUser is RocketBase {
         // Get an instance of that pool contract
         rocketPoolMini = RocketPoolMini(_miniPoolAddress);       
         // User can only set this backup address before deployment to casper, also partners cannot set this address to their own to prevent them accessing the users funds after the set withdrawal backup period expires
-        if ((rocketPoolMini.getStatus() == 0 || rocketPoolMini.getStatus() == 1) && _newUserAddressUsedForDeposit != 0 && rocketPoolMini.getUserPartner(msg.sender) != _newUserAddressUsedForDeposit) {
+        if ((rocketPoolMini.getStatus() == 1 || rocketPoolMini.getStatus() == 2) && _newUserAddressUsedForDeposit != 0 && rocketPoolMini.getUserPartner(msg.sender) != _newUserAddressUsedForDeposit) {
             if (rocketPoolMini.setUserAddressBackupWithdrawal(msg.sender, _newUserAddressUsedForDeposit)) {
                 // Fire the event
                 UserSetBackupWithdrawalAddress(msg.sender, _newUserAddressUsedForDeposit, _miniPoolAddress, now);
@@ -297,7 +295,7 @@ contract RocketUser is RocketBase {
         // Check to make sure this feature is currently enabled
         if (rocketSettings.getMiniPoolBackupCollectEnabled()) {
             // This can only occur after a pool has received its Casper deposit (some time ago) and the pool is allowing withdrawals and the given address must match the accounts they wish to withdraw from
-            if (now >= (rocketPoolMini.getStatusChangeTime() + rocketSettings.getMiniPoolBackupCollectTime()) && rocketPoolMini.getStatus() == 4) {
+            if (now >= (rocketPoolMini.getStatusChangeTime() + rocketSettings.getMiniPoolBackupCollectTime()) && rocketPoolMini.getStatus() == 5) {
                 // Ok we've gotten this far, original deposit address definitely has this address  as a backup?
                 if (rocketPoolMini.getUserBackupAddressOK(_userAddressUsedForDeposit, msg.sender)) {
                     // Ok we're all good, lets change the initial user deposit address to the backup one so they can call the normal withdrawal process
@@ -332,7 +330,7 @@ contract RocketUser is RocketBase {
         // Check to see if the user is actually in this pool and has a deposit, and is not a partner user
         require(_amount > 0 && rocketPoolMini.getUserPartner(msg.sender) == 0);        
         // Check the status, must be currently staking to allow tokens to be withdrawn
-        require(rocketPoolMini.getStatus() == 2);
+        require(rocketPoolMini.getStatus() == 3);
         // Take the fee out of the tokens to be sent, need to do it this way incase they are withdrawing their entire balance as tokens
         uint256 userDepositTokenFeePercInWei = _amount.mul(rocketSettings.getTokenRPDWithdrawalFeePerc()) / calcBase;
         // Take the token withdrawal fee from the ether amount so we can make tokens which match that amount

@@ -13,13 +13,14 @@ contract RocketSettings is RocketBase {
     /*** Enums ***************/
 
     // Pool statuses are defined here and converted to uint when setting, their corresponding uint value is commented below
-    enum PoolMiniStatuses { 
-        PreLaunchAcceptingDeposits, // 0 - Accepting deposits for the pool, users can deposit multiple times and it will update their balance
-        PreLaunchCountdown,         // 1 - The minimum required for this pool to start staking has been met and the countdown to start staking has started, users can withdraw their deposit if they change their mind during this time but cannot deposit more
-        Staking,                    // 2 - The countdown has passed and the pool is now staking, users cannot deposit or withdraw until the minimum staking period has passed for their pool
-        LoggedOut,                  // 3 - The pool has now requested logout from the casper validator contract, it will stay in this status until it can withdraw
-        Withdrawn,                  // 4 - The pool has requested it's deposit from Casper and received its deposit +rewards || -penalties
-        Closed                      // 5 - Pool has had all its balance withdrawn by its users and no longer contains any users or balance
+    enum PoolMiniStatuses {
+        PreLaunchAvailable,         // 0 - Pool has been created by a node and has no staking duration set or users in it  
+        PreLaunchAcceptingDeposits, // 1 - Accepting deposits for the pool, users can deposit multiple times and it will update their balance
+        PreLaunchCountdown,         // 2 - The minimum required for this pool to start staking has been met and the countdown to start staking has started, users can withdraw their deposit if they change their mind during this time but cannot deposit more
+        Staking,                    // 3 - The countdown has passed and the pool is now staking, users cannot deposit or withdraw until the minimum staking period has passed for their pool
+        LoggedOut,                  // 4 - The pool has now requested logout from the casper validator contract, it will stay in this status until it can withdraw
+        Withdrawn,                  // 5 - The pool has requested it's deposit from Casper and received its deposit +rewards || -penalties
+        Closed                      // 6 - Pool has had all its balance withdrawn by its users and no longer contains any users or balance
     }
 
 
