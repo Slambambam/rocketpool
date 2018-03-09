@@ -156,7 +156,7 @@ contract RocketPool is RocketBase {
         assert(poolAssignToAddress != 0);
         // Get the contract instance
         poolAddUserTo = getPoolInstance(poolAssignToAddress);
-        // Double check the pools status is accepting deposits and user isn't in there already
+        // Double check the pools status is accepting deposits
         if (poolAddUserTo.getStatus() == 1) {
             // User is added if they don't exist in it already
             if (poolAddUserTo.addUser(_newUserAddress, _partnerAddress)) {

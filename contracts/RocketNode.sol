@@ -174,6 +174,8 @@ contract RocketNode is RocketBase {
         rocketStorage.setAddress(keccak256("nodes.index.reverse", nodeCountTotal), _newNodeAddress);
         // Fire the event
         NodeRegistered(_newNodeAddress, now);
+        // Now create a minipool for that node to use
+        
         // All good
         return true;
     } 
